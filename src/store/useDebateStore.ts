@@ -1,8 +1,9 @@
 import { create } from 'zustand';
 import type { Debate, Team, Round, ArgumentCard, Danmaku, Violation, Score, Speech, Highlight, Debater } from '../types';
-import { currentDebate, mockArgumentCards, mockDanmakus, mockViolations, mockScores, mockSpeech } from '../data/mockDebates';
+import { currentDebate, mockArgumentCards, mockDanmakus, mockViolations, mockScores, mockSpeech, mockDebates } from '../data/mockDebates';
 
 interface DebateState {
+  debates: Debate[];
   currentDebate: Debate;
   selectedFormat: string;
   argumentCards: ArgumentCard[];
@@ -15,6 +16,7 @@ interface DebateState {
   currentRoundIndex: number;
   timeRemaining: number;
   currentSpeaker: Debater | null;
+  addDebate: (debate: Debate) => void;
   setCurrentDebate: (debate: Debate) => void;
   setSelectedFormat: (format: string) => void;
   addArgumentCard: (card: ArgumentCard) => void;
@@ -29,11 +31,14 @@ interface DebateState {
   setTimeRemaining: (time: number) => void;
   setCurrentSpeaker: (speaker: Debater | null) => void;
   togglePause: () => void;
+  setIsPaused: (paused: boolean) => void;
   addSpeech: (speech: Speech) => void;
   updateTeamScore: (debaterId: string, scoreChange: number) => void;
+  resetRoundState: () => void;
 }
 
 export const useDebateStore = create<DebateState>((set, get) => ({
+  debates: mockDebates,
   currentDebate: currentDebate,
   selectedFormat: 'nsda',
   argumentCards: mockArgumentCards,
@@ -46,6 +51,12 @@ export const useDebateStore = create<DebateState>((set, get) => ({
   currentRoundIndex: 0,
   timeRemaining: 180,
   currentSpeaker: null,
+
+  addDebate: (debate) =>
+    set((state) => ({
+      debates: [debate, ...state.debates],
+      currentDebate: debate,
+    })),
 
   setCurrentDebate: (debate) => set({ currentDebate: debate }),
   setSelectedFormat: (format) => set({ selectedFormat: format }),
@@ -121,6 +132,23 @@ export const useDebateStore = create<DebateState>((set, get) => ({
     }),
 
   togglePause: () => set((state) => ({ isPaused: !state.isPaused })),
+  setIsPaused: (paused) => set({ isPaused: paused }),
+
+  resetRoundState: () =>
+    set((state) => {
+      const nextRoundIndex = state.currentRoundIndex;
+      const nextRound = state.currentDebate.rounds[nextRoundIndex];
+      const teamsWithNoSpeaking = state.currentDebate.teams.map((team) => ({
+        ...team,
+        debaters: team.debaters.map((d) => ({ ...d, isSpeaking: false })),
+      }));
+      return {
+        isPaused: false,
+        currentSpeaker: null,
+        timeRemaining: nextRound?.duration || 180,
+        currentDebate: { ...state.currentDebate, teams: teamsWithNoSpeaking },
+      };
+    }),
 
   addSpeech: (speech) =>
     set((state) => ({ speeches: [...state.speeches, speech] })),

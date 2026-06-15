@@ -4,7 +4,7 @@ import { useDebateStore } from '../store/useDebateStore';
 
 export function useDanmaku() {
   const { danmakus, addDanmaku } = useDebateStore();
-  const [visibleDanmakus, setVisibleDanmakus] = useState<Danmaku[]>([]);
+  const [displayDanmakus, setDisplayDanmakus] = useState<Danmaku[]>([]);
   const [danmakuInput, setDanmakuInput] = useState('');
   const [selectedColor, setSelectedColor] = useState('#ffffff');
 
@@ -36,26 +36,20 @@ export function useDanmaku() {
   }, [danmakuInput, selectedColor, addDanmaku]);
 
   useEffect(() => {
-    const interval = setInterval(() => {
-      const now = Date.now();
-      const recentDanmakus = danmakus.filter(
-        (d) => now - d.timestamp < 10000
-      );
-      setVisibleDanmakus(recentDanmakus.slice(-20));
-    }, 1000);
-
-    return () => clearInterval(interval);
+    setDisplayDanmakus([...danmakus]);
   }, [danmakus]);
+
+  const visibleDanmakus = displayDanmakus;
 
   const getDanmakuStyle = useCallback((index: number) => {
     const top = (index * 30) % 70 + 5;
     const animationDuration = 8 + Math.random() * 4;
     return {
       top: `${top}%`,
-      color: danmakus[index]?.color || '#ffffff',
+      color: displayDanmakus[index]?.color || '#ffffff',
       animationDuration: `${animationDuration}s`,
     };
-  }, [danmakus]);
+  }, [displayDanmakus]);
 
   return {
     visibleDanmakus,

@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { motion } from 'framer-motion';
 import {
   History,
@@ -87,14 +87,95 @@ export default function ReviewRoom() {
 
   const voteResults = mockStatistics.voteResults;
 
+  const playIntervalRef = useRef<number | null>(null);
+
+  const getItemDuration = (item: any) => {
+    if (item.type === 'speech') return item.duration || 240;
+    if (item.type === 'violation') return 30;
+    return 20;
+  };
+
+  const totalDuration = timelineItems.reduce((sum, item) => sum + getItemDuration(item), 0);
+
   const handleTimelineClick = (index: number) => {
     setSelectedTimelineIndex(index);
     setCurrentPlayTime(0);
+    if (playIntervalRef.current) {
+      clearInterval(playIntervalRef.current);
+      playIntervalRef.current = null;
+    }
+    if (isPlaying) {
+      startPlayback();
+    }
+  };
+
+  const handleSkipBack = () => {
+    const newIndex = Math.max(0, selectedTimelineIndex - 1);
+    setSelectedTimelineIndex(newIndex);
+    setCurrentPlayTime(0);
+  };
+
+  const handleSkipForward = () => {
+    const newIndex = Math.min(timelineItems.length - 1, selectedTimelineIndex + 1);
+    setSelectedTimelineIndex(newIndex);
+    setCurrentPlayTime(0);
+  };
+
+  const startPlayback = () => {
+    if (playIntervalRef.current) {
+      clearInterval(playIntervalRef.current);
+    }
+    playIntervalRef.current = window.setInterval(() => {
+      setCurrentPlayTime((prev) => {
+        const currentItem = timelineItems[selectedTimelineIndex];
+        if (!currentItem) {
+          setIsPlaying(false);
+          if (playIntervalRef.current) {
+            clearInterval(playIntervalRef.current);
+            playIntervalRef.current = null;
+          }
+          return 0;
+        }
+        const itemDur = getItemDuration(currentItem);
+        const newTime = prev + 1;
+        if (newTime >= itemDur) {
+          if (selectedTimelineIndex < timelineItems.length - 1) {
+            setSelectedTimelineIndex((i) => i + 1);
+            return 0;
+          } else {
+            setIsPlaying(false);
+            if (playIntervalRef.current) {
+              clearInterval(playIntervalRef.current);
+              playIntervalRef.current = null;
+            }
+            return itemDur;
+          }
+        }
+        return newTime;
+      });
+    }, 1000);
   };
 
   const togglePlay = () => {
-    setIsPlaying(!isPlaying);
+    if (isPlaying) {
+      if (playIntervalRef.current) {
+        clearInterval(playIntervalRef.current);
+        playIntervalRef.current = null;
+      }
+      setIsPlaying(false);
+    } else {
+      setIsPlaying(true);
+      startPlayback();
+    }
   };
+
+  useEffect(() => {
+    return () => {
+      if (playIntervalRef.current) {
+        clearInterval(playIntervalRef.current);
+      }
+    };
+  }, []);
 
   const renderTimelineItem = (item: any, index: number) => {
     const debater = getDebaterById(item.debaterId);
@@ -210,9 +291,7 @@ export default function ReviewRoom() {
                       </CardTitle>
                       <div className="flex items-center gap-2 text-sm text-gray-400">
                         <Clock size={14} />
-                        {formatDuration(currentPlayTime)} / {formatDuration(
-                          timelineItems.reduce((sum, item) => sum + (item.type === 'speech' ? item.duration : item.type === 'violation' ? 30 : 20), 0)
-                        )}
+                        {formatDuration(currentPlayTime)} / {formatDuration(getItemDuration(selectedItem || {}))}
                       </div>
                     </div>
                   </CardHeader>
@@ -254,16 +333,15 @@ export default function ReviewRoom() {
                     <div className="mb-6">
                       <ProgressBar
                         progress={
-                          timelineItems.length > 0
-                            ? ((selectedTimelineIndex + (currentPlayTime > 0 ? 0.5 : 0)) / timelineItems.length) * 100
+                          selectedItem
+                            ? (currentPlayTime / getItemDuration(selectedItem)) * 100
                             : 0
                         }
                         color="success"
                       />
                       <div className="flex justify-between text-xs text-gray-500 mt-2">
-                        <span>开始</span>
-                        <span>{formatDateTime(timelineItems[0]?.timestamp || new Date())}</span>
-                        <span>结束</span>
+                        <span>{formatDuration(0)}</span>
+                        <span>{formatDuration(getItemDuration(selectedItem || {}))}</span>
                       </div>
                     </div>
 
@@ -271,7 +349,8 @@ export default function ReviewRoom() {
                       <Button
                         variant="ghost"
                         size="lg"
-                        onClick={() => setSelectedTimelineIndex(Math.max(0, selectedTimelineIndex - 1))}
+                        onClick={handleSkipBack}
+                        disabled={selectedTimelineIndex === 0}
                       >
                         <SkipBack size={20} />
                       </Button>
@@ -287,7 +366,8 @@ export default function ReviewRoom() {
                       <Button
                         variant="ghost"
                         size="lg"
-                        onClick={() => setSelectedTimelineIndex(Math.min(timelineItems.length - 1, selectedTimelineIndex + 1))}
+                        onClick={handleSkipForward}
+                        disabled={selectedTimelineIndex >= timelineItems.length - 1}
                       >
                         <SkipForward size={20} />
                       </Button>

@@ -498,7 +498,7 @@ export default function Growth() {
                         animate={{ opacity: 1, x: 0 }}
                         transition={{ delay: index * 0.05 }}
                         className={`flex items-center gap-4 p-4 rounded-xl transition-colors ${
-                          team.team === '星辰辩队'
+                          team.team === '锋芒队'
                             ? 'bg-[#d4af37]/20 border border-[#d4af37]/30'
                             : 'bg-white/5 hover:bg-white/10'
                         }`}
@@ -540,40 +540,37 @@ export default function Growth() {
                 </CardHeader>
                 <CardContent>
                   <div className="space-y-3">
-                    {personalRankingData.map((person, index) => {
-                      const debater = mockDebaters.find((d) => d.id === person.debaterId) || mockDebaters[0];
-                      return (
-                        <motion.div
-                          key={person.debaterId}
-                          initial={{ opacity: 0, x: -20 }}
-                          animate={{ opacity: 1, x: 0 }}
-                          transition={{ delay: index * 0.05 }}
-                          className={`flex items-center gap-4 p-4 rounded-xl transition-colors ${
-                            person.debaterId === currentUser.id
-                              ? 'bg-[#d4af37]/20 border border-[#d4af37]/30'
-                              : 'bg-white/5 hover:bg-white/10'
-                          }`}
-                        >
-                          <div className={`w-10 h-10 rounded-full flex items-center justify-center font-bold ${
-                            index === 0 ? 'bg-gradient-to-br from-yellow-400 to-yellow-600 text-black' :
-                            index === 1 ? 'bg-gradient-to-br from-gray-300 to-gray-500 text-black' :
-                            index === 2 ? 'bg-gradient-to-br from-orange-600 to-orange-800 text-white' :
-                            'bg-white/10 text-gray-400'
-                          }`}>
-                            {index + 1}
-                          </div>
-                          <Avatar name={debater.name} avatar={debater.avatar} size="md" />
-                          <div className="flex-1">
-                            <p className="text-white font-medium">{debater.name}</p>
-                            <p className="text-sm text-gray-400">{person.team}</p>
-                          </div>
-                          <div className="text-right">
-                            <p className="text-xl font-bold text-[#d4af37]">{person.score}</p>
-                            <p className="text-xs text-gray-500">评分</p>
-                          </div>
-                        </motion.div>
-                      );
-                    })}
+                    {personalRankingData.map((person, index) => (
+                      <motion.div
+                        key={person.debaterId}
+                        initial={{ opacity: 0, x: -20 }}
+                        animate={{ opacity: 1, x: 0 }}
+                        transition={{ delay: index * 0.05 }}
+                        className={`flex items-center gap-4 p-4 rounded-xl transition-colors ${
+                          person.name === currentUser.name
+                            ? 'bg-[#d4af37]/20 border border-[#d4af37]/30'
+                            : 'bg-white/5 hover:bg-white/10'
+                        }`}
+                      >
+                        <div className={`w-10 h-10 rounded-full flex items-center justify-center font-bold ${
+                          index === 0 ? 'bg-gradient-to-br from-yellow-400 to-yellow-600 text-black' :
+                          index === 1 ? 'bg-gradient-to-br from-gray-300 to-gray-500 text-black' :
+                          index === 2 ? 'bg-gradient-to-br from-orange-600 to-orange-800 text-white' :
+                          'bg-white/10 text-gray-400'
+                        }`}>
+                          {index + 1}
+                        </div>
+                        <Avatar name={person.name} size="md" />
+                        <div className="flex-1">
+                          <p className="text-white font-medium">{person.name}</p>
+                          <p className="text-sm text-gray-400">{person.team}</p>
+                        </div>
+                        <div className="text-right">
+                          <p className="text-xl font-bold text-[#d4af37]">{person.score}</p>
+                          <p className="text-xs text-gray-500">评分</p>
+                        </div>
+                      </motion.div>
+                    ))}
                   </div>
                 </CardContent>
               </Card>

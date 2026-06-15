@@ -10,20 +10,77 @@ import { Modal } from '../components/ui/Modal';
 import { DebateCard } from '../components/features/DebateCard';
 import { TeamCard } from '../components/features/TeamCard';
 import { useDebateStore } from '../store/useDebateStore';
-import { mockDebates, debateFormats } from '../data/mockDebates';
+import { debateFormats } from '../data/mockDebates';
 import { formatDateTime } from '../utils/format';
+import type { Debate } from '../types';
 
 export default function Lobby() {
-  const { currentDebate, selectedFormat, setSelectedFormat, setCurrentDebate } = useDebateStore();
+  const { debates, currentDebate, selectedFormat, setSelectedFormat, setCurrentDebate, addDebate } = useDebateStore();
   const [searchQuery, setSearchQuery] = useState('');
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [newDebateTitle, setNewDebateTitle] = useState('');
   const [debateType, setDebateType] = useState<'policy' | 'value' | 'fact'>('value');
   const [showTimerConfig, setShowTimerConfig] = useState(false);
 
-  const filteredDebates = mockDebates.filter(debate =>
+  const filteredDebates = debates.filter(debate =>
     debate.title.toLowerCase().includes(searchQuery.toLowerCase())
   );
+
+  const handleCreateDebate = () => {
+    if (!newDebateTitle.trim()) return;
+
+    const selectedFormatData = debateFormats.find(f => f.id === selectedFormat) || debateFormats[0];
+    const rounds = selectedFormatData.rounds.map((r, i) => ({
+      id: `round-new-${Date.now()}-${i}`,
+      name: r.name,
+      side: i % 2 === 0 ? 'affirmative' as const : (i === 4 ? 'both' as const : 'negative' as const),
+      duration: r.duration,
+      currentSpeaker: null as string | null,
+      timeRemaining: r.duration,
+      speeches: [],
+      scores: [],
+      violations: [],
+    }));
+
+    const newDebate: Debate = {
+      id: `debate-${Date.now()}`,
+      title: newDebateTitle.trim(),
+      type: debateType,
+      format: selectedFormat as Debate['format'],
+      status: 'preparing',
+      startTime: new Date(),
+      teams: [
+        {
+          id: `team-aff-${Date.now()}`,
+          name: '正方队伍',
+          side: 'affirmative',
+          debaters: [],
+          score: 0,
+        },
+        {
+          id: `team-neg-${Date.now()}`,
+          name: '反方队伍',
+          side: 'negative',
+          debaters: [],
+          score: 0,
+        },
+      ],
+      rounds: rounds,
+      timerRules: rounds.map((r, i) => ({
+        id: `timer-${i}`,
+        roundName: r.name,
+        duration: r.duration,
+        warningTime: 30,
+        overtimeAllowed: false,
+      })),
+      judges: [],
+      spectators: 0,
+    };
+
+    addDebate(newDebate);
+    setNewDebateTitle('');
+    setShowCreateModal(false);
+  };
 
   const typeLabels: Record<string, { label: string; color: string }> = {
     policy: { label: '政策辩', color: 'bg-blue-500/20 text-blue-300' },
@@ -237,7 +294,7 @@ export default function Lobby() {
               </CardHeader>
               <CardContent>
                 <div className="space-y-3">
-                  {mockDebates.slice(0, 3).map((debate, index) => (
+                  {debates.slice(0, 3).map((debate, index) => (
                     <motion.div
                       key={debate.id}
                       initial={{ opacity: 0, x: 20 }}
@@ -327,7 +384,12 @@ export default function Lobby() {
             <Button variant="ghost" className="flex-1" onClick={() => setShowCreateModal(false)}>
               取消
             </Button>
-            <Button variant="secondary" className="flex-1">
+            <Button 
+              variant="secondary" 
+              className="flex-1" 
+              onClick={handleCreateDebate}
+              disabled={!newDebateTitle.trim()}
+            >
               创建辩论
             </Button>
           </div>

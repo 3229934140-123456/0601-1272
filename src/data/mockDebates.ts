@@ -251,6 +251,11 @@ export const mockDebates: Debate[] = [
       { id: 'tr2', roundName: '反方四辩质询一辩', duration: 120, warningTime: 15, overtimeAllowed: false },
       { id: 'tr3', roundName: '自由辩论', duration: 240, warningTime: 30, overtimeAllowed: false },
     ],
+    judges: [
+      { id: 'judge-1', name: '张教授', affiliation: '北京大学法学院' },
+      { id: 'judge-2', name: '李教授', affiliation: '清华大学社科学院' },
+    ],
+    spectators: 128,
   },
   {
     id: 'debate-2',
@@ -262,6 +267,8 @@ export const mockDebates: Debate[] = [
     teams: [],
     rounds: [],
     timerRules: [],
+    judges: [],
+    spectators: 0,
   },
   {
     id: 'debate-3',
@@ -273,6 +280,8 @@ export const mockDebates: Debate[] = [
     teams: [],
     rounds: [],
     timerRules: [],
+    judges: [],
+    spectators: 256,
   },
 ];
 

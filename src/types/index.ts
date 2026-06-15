@@ -8,6 +8,8 @@ export interface Debate {
   teams: Team[];
   rounds: Round[];
   timerRules: TimerRule[];
+  judges: { id: string; name: string; affiliation: string }[];
+  spectators: number;
 }
 
 export interface Team {
@@ -121,13 +123,13 @@ export interface Statistics {
   commonArguments: string[];
   badges: Badge[];
   charts: {
-    speechTime: { name: string; time: number }[];
-    responseSpeed: { name: string; speed: number }[];
-    winRate: { name: string; rate: number }[];
+    speechTime: { month: string; minutes: number }[];
+    responseSpeed: { debate: string; seconds: number }[];
+    winRate: { month: string; wins: number; losses: number }[];
     argumentUsage: { name: string; count: number }[];
-    teamRanking?: { team: string; wins: number; losses: number; points: number }[];
-    personalRanking?: { debaterId: string; team: string; score: number }[];
-    skillRadar?: { skill: string; value: number }[];
+    teamRanking: { team: string; wins: number; losses: number; points: number }[];
+    personalRanking: { debaterId: string; name: string; team: string; score: number }[];
+    skillRadar: { skill: string; value: number }[];
   };
   voteResults: {
     affirmative: number;

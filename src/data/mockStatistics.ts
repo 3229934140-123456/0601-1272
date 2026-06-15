@@ -1,5 +1,6 @@
 import type { Statistics, TrainingTask } from '../types';
 import { mockBadges } from './mockBadges';
+import { currentUser } from './mockDebaters';
 
 export { mockBadges } from './mockBadges';
 
@@ -17,32 +18,28 @@ export const mockStatistics: Statistics = {
   badges: mockBadges,
   charts: {
     speechTime: [
-      { name: '第1场', time: 420 },
-      { name: '第2场', time: 380 },
-      { name: '第3场', time: 450 },
-      { name: '第4场', time: 520 },
-      { name: '第5场', time: 480 },
-      { name: '第6场', time: 550 },
-      { name: '第7场', time: 510 },
-      { name: '第8场', time: 580 },
+      { month: '1月', minutes: 240 },
+      { month: '2月', minutes: 310 },
+      { month: '3月', minutes: 420 },
+      { month: '4月', minutes: 380 },
+      { month: '5月', minutes: 520 },
+      { month: '6月', minutes: 480 },
     ],
     responseSpeed: [
-      { name: '第1场', speed: 3.2 },
-      { name: '第2场', speed: 2.8 },
-      { name: '第3场', speed: 2.5 },
-      { name: '第4场', speed: 2.4 },
-      { name: '第5场', speed: 2.2 },
-      { name: '第6场', speed: 2.1 },
-      { name: '第7场', speed: 2.0 },
-      { name: '第8场', speed: 2.3 },
+      { debate: '第1场', seconds: 3.2 },
+      { debate: '第2场', seconds: 2.8 },
+      { debate: '第3场', seconds: 2.5 },
+      { debate: '第4场', seconds: 2.4 },
+      { debate: '第5场', seconds: 2.2 },
+      { debate: '第6场', seconds: 2.3 },
     ],
     winRate: [
-      { name: '1月', rate: 50 },
-      { name: '2月', rate: 55 },
-      { name: '3月', rate: 60 },
-      { name: '4月', rate: 58 },
-      { name: '5月', rate: 65 },
-      { name: '6月', rate: 67 },
+      { month: '1月', wins: 3, losses: 3 },
+      { month: '2月', wins: 4, losses: 3 },
+      { month: '3月', wins: 5, losses: 3 },
+      { month: '4月', wins: 4, losses: 3 },
+      { month: '5月', wins: 6, losses: 3 },
+      { month: '6月', wins: 4, losses: 2 },
     ],
     argumentUsage: [
       { name: '经济效率', count: 28 },
@@ -53,6 +50,32 @@ export const mockStatistics: Statistics = {
       { name: '环境保护', count: 10 },
       { name: '文化传承', count: 8 },
       { name: '国际视野', count: 6 },
+    ],
+    teamRanking: [
+      { team: '锋芒队', wins: 18, losses: 5, points: 36 },
+      { team: '星辰队', wins: 15, losses: 8, points: 30 },
+      { team: '破晓队', wins: 14, losses: 9, points: 28 },
+      { team: '知行队', wins: 12, losses: 11, points: 24 },
+      { team: '弘毅队', wins: 10, losses: 13, points: 20 },
+      { team: '明远队', wins: 8, losses: 15, points: 16 },
+    ],
+    personalRanking: [
+      { debaterId: '1', name: '张明远', team: '锋芒队', score: 92.5 },
+      { debaterId: '2', name: currentUser.name, team: '锋芒队', score: 88.3 },
+      { debaterId: '3', name: '李思琪', team: '星辰队', score: 87.1 },
+      { debaterId: '4', name: '王子轩', team: '破晓队', score: 85.6 },
+      { debaterId: '5', name: '刘雨晴', team: '知行队', score: 83.2 },
+      { debaterId: '6', name: '陈志豪', team: '锋芒队', score: 82.8 },
+      { debaterId: '7', name: '周晓彤', team: '星辰队', score: 81.5 },
+      { debaterId: '8', name: '吴俊杰', team: '弘毅队', score: 80.1 },
+    ],
+    skillRadar: [
+      { skill: '逻辑分析', value: 88 },
+      { skill: '语言表达', value: 85 },
+      { skill: '临场应变', value: 78 },
+      { skill: '数据运用', value: 82 },
+      { skill: '团队协作', value: 90 },
+      { skill: '心理素质', value: 80 },
     ],
   },
   voteResults: {

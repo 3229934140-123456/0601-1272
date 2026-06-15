@@ -46,16 +46,15 @@ export default function CompetitionArena() {
   const {
     currentDebate,
     currentRoundIndex,
-    timeRemaining,
     isPaused,
     currentSpeaker,
     speeches,
-    togglePause,
-    addDanmaku,
     setCurrentRoundIndex,
     setTimeRemaining,
     setCurrentSpeaker,
+    setIsPaused,
     addSpeech,
+    resetRoundState,
   } = useDebateStore();
   const { currentUser } = useUserStore();
   const [isSpeaking, setIsSpeaking] = useState(false);
@@ -70,7 +69,7 @@ export default function CompetitionArena() {
     (t) => t.debaters.some((d) => d.id === currentSpeaker?.id)
   );
 
-  const { timeRemaining: timerTime, isRunning, start, pause, reset } = useTimer({
+  const { timeRemaining: timerTime, isRunning, start, pause, resume, reset } = useTimer({
     initialTime: currentRound?.duration || 180,
     onComplete: () => {
       playEndSound();
@@ -125,6 +124,7 @@ export default function CompetitionArena() {
     if (isSpeaking) {
       setIsSpeaking(false);
       pause();
+      setIsPaused(true);
       if (currentSpeaker) {
         addSpeech({
           id: `speech-${Date.now()}`,
@@ -140,7 +140,18 @@ export default function CompetitionArena() {
     } else {
       setIsSpeaking(true);
       start();
+      setIsPaused(false);
       setCurrentSpeaker(currentUser as any);
+    }
+  };
+
+  const handleTogglePause = () => {
+    if (isPaused) {
+      resume();
+      setIsPaused(false);
+    } else {
+      pause();
+      setIsPaused(true);
     }
   };
 
@@ -148,7 +159,13 @@ export default function CompetitionArena() {
     setIsSpeaking(false);
     pause();
     if (currentRoundIndex < (currentDebate?.rounds.length || 0) - 1) {
-      setCurrentRoundIndex(currentRoundIndex + 1);
+      const nextIndex = currentRoundIndex + 1;
+      setCurrentRoundIndex(nextIndex);
+      resetRoundState();
+      const nextRound = currentDebate?.rounds[nextIndex];
+      if (nextRound) {
+        reset(nextRound.duration);
+      }
     }
   };
 
@@ -285,7 +302,8 @@ export default function CompetitionArena() {
                         variant={isPaused ? 'secondary' : 'ghost'}
                         size="lg"
                         leftIcon={isPaused ? <Play size={20} /> : <Pause size={20} />}
-                        onClick={togglePause}
+                        onClick={handleTogglePause}
+                        disabled={!isSpeaking && !isRunning}
                       >
                         {isPaused ? '继续' : '暂停'}
                       </Button>
