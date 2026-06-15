@@ -50,6 +50,7 @@ import { Avatar } from '../components/ui/Avatar';
 import { ProgressBar } from '../components/ui/ProgressBar';
 import { BadgeIcon } from '../components/features/BadgeIcon';
 import { useUserStore } from '../store/useUserStore';
+import { useDebateStore } from '../store/useDebateStore';
 import { mockStatistics, mockBadges, mockTrainingTasks } from '../data/mockStatistics';
 import { mockDebaters } from '../data/mockDebaters';
 import { formatDuration, formatNumber, formatPercentage } from '../utils/format';
@@ -58,9 +59,11 @@ const CHART_COLORS = ['#d4af37', '#1e3a5f', '#0d7377', '#c41e3a', '#6366f1', '#e
 
 export default function Growth() {
   const { currentUser } = useUserStore();
+  const { trainingTasks, speeches, updateTrainingTask } = useDebateStore();
   const [activeTab, setActiveTab] = useState<'overview' | 'badges' | 'ranking' | 'tasks'>('overview');
+  const [expandedTaskId, setExpandedTaskId] = useState<string | null>(null);
   const stats = mockStatistics;
-  const tasks = mockTrainingTasks;
+  const allTasks = [...mockTrainingTasks, ...trainingTasks];
 
   const speakingTimeData = stats.charts.speechTime;
   const responseSpeedData = stats.charts.responseSpeed;
@@ -70,9 +73,9 @@ export default function Growth() {
   const personalRankingData = stats.charts.personalRanking;
   const radarData = stats.charts.skillRadar;
 
-  const completedTasks = tasks.filter((t) => t.status === 'completed').length;
-  const inProgressTasks = tasks.filter((t) => t.status === 'in_progress').length;
-  const pendingTasks = tasks.filter((t) => t.status === 'pending').length;
+  const completedTasks = allTasks.filter((t) => t.status === 'completed').length;
+  const inProgressTasks = allTasks.filter((t) => t.status === 'in_progress').length;
+  const pendingTasks = allTasks.filter((t) => t.status === 'pending').length;
 
   const unlockedBadges = mockBadges.filter((b) => b.unlocked);
   const lockedBadges = mockBadges.filter((b) => !b.unlocked);
@@ -174,7 +177,7 @@ export default function Growth() {
                       <div className="text-2xl font-bold text-orange-400">
                         {pendingTasks + inProgressTasks}
                       </div>
-                      <div className="text-xs text-gray-500 mt-1">共 {tasks.length} 项</div>
+                      <div className="text-xs text-gray-500 mt-1">共 {allTasks.length} 项</div>
                     </div>
                   </div>
                 </CardContent>
@@ -688,77 +691,177 @@ export default function Growth() {
                 </CardHeader>
                 <CardContent>
                   <div className="space-y-3">
-                    {tasks.map((task, index) => (
-                      <motion.div
-                        key={task.id}
-                        initial={{ opacity: 0, x: -20 }}
-                        animate={{ opacity: 1, x: 0 }}
-                        transition={{ delay: index * 0.05 }}
-                        className={`p-4 rounded-xl transition-colors ${
-                          task.status === 'completed'
-                            ? 'bg-green-500/10 border border-green-500/20'
-                            : task.status === 'in_progress'
-                            ? 'bg-blue-500/10 border border-blue-500/20'
-                            : 'bg-white/5 border border-white/10'
-                        }`}
-                      >
-                        <div className="flex items-start gap-4">
-                          <div className={`w-10 h-10 rounded-full flex items-center justify-center flex-shrink-0 ${
+                    {allTasks.map((task, index) => {
+                      const relatedSpeech = task.relatedSpeechId
+                        ? speeches.find((s) => s.id === task.relatedSpeechId)
+                        : null;
+                      const isExpanded = expandedTaskId === task.id;
+
+                      return (
+                        <motion.div
+                          key={task.id}
+                          initial={{ opacity: 0, x: -20 }}
+                          animate={{ opacity: 1, x: 0 }}
+                          transition={{ delay: index * 0.05 }}
+                          className={`p-4 rounded-xl transition-colors ${
                             task.status === 'completed'
-                              ? 'bg-green-500/30'
+                              ? 'bg-green-500/10 border border-green-500/20'
                               : task.status === 'in_progress'
-                              ? 'bg-blue-500/30'
-                              : 'bg-white/10'
-                          }`}>
-                            {task.status === 'completed' ? (
-                              <CheckCircle2 size={20} className="text-green-400" />
-                            ) : task.status === 'in_progress' ? (
-                              <Flame size={20} className="text-blue-400" />
-                            ) : (
-                              <AlertCircle size={20} className="text-gray-400" />
-                            )}
-                          </div>
-                          <div className="flex-1 min-w-0">
-                            <div className="flex items-center justify-between mb-2">
-                              <h4 className="text-white font-medium">{task.title}</h4>
-                              <span className={`px-2 py-1 rounded text-xs font-medium ${
-                                task.priority === 'high'
-                                  ? 'bg-red-500/20 text-red-400'
-                                  : task.priority === 'medium'
-                                  ? 'bg-yellow-500/20 text-yellow-400'
-                                  : 'bg-gray-500/20 text-gray-400'
-                              }`}>
-                                {task.priority === 'high' ? '高' : task.priority === 'medium' ? '中' : '低'}
-                              </span>
+                              ? 'bg-blue-500/10 border border-blue-500/20'
+                              : 'bg-white/5 border border-white/10'
+                          }`}
+                        >
+                          <div
+                            className="flex items-start gap-4 cursor-pointer"
+                            onClick={() => setExpandedTaskId(isExpanded ? null : task.id)}
+                          >
+                            <div className={`w-10 h-10 rounded-full flex items-center justify-center flex-shrink-0 ${
+                              task.status === 'completed'
+                                ? 'bg-green-500/30'
+                                : task.status === 'in_progress'
+                                ? 'bg-blue-500/30'
+                                : 'bg-white/10'
+                            }`}>
+                              {task.status === 'completed' ? (
+                                <CheckCircle2 size={20} className="text-green-400" />
+                              ) : task.status === 'in_progress' ? (
+                                <Flame size={20} className="text-blue-400" />
+                              ) : (
+                                <AlertCircle size={20} className="text-gray-400" />
+                              )}
                             </div>
-                            <p className="text-sm text-gray-400 mb-3">{task.description}</p>
-                            <div className="flex items-center justify-between">
-                              <div className="flex-1 mr-4">
-                                <div className="flex justify-between text-xs text-gray-500 mb-1">
-                                  <span>进度</span>
-                                  <span>{task.progress}%</span>
+                            <div className="flex-1 min-w-0">
+                              <div className="flex items-center justify-between mb-2">
+                                <h4 className="text-white font-medium">{task.title}</h4>
+                                <div className="flex items-center gap-2">
+                                  {task.relatedSpeechId && (
+                                    <span className="px-2 py-0.5 text-[10px] rounded-full bg-orange-500/20 text-orange-400">
+                                      回练
+                                    </span>
+                                  )}
+                                  <span className={`px-2 py-1 rounded text-xs font-medium ${
+                                    task.priority === 'high'
+                                      ? 'bg-red-500/20 text-red-400'
+                                      : task.priority === 'medium'
+                                      ? 'bg-yellow-500/20 text-yellow-400'
+                                      : 'bg-gray-500/20 text-gray-400'
+                                  }`}>
+                                    {task.priority === 'high' ? '高' : task.priority === 'medium' ? '中' : '低'}
+                                  </span>
                                 </div>
-                                <ProgressBar
-                                  progress={task.progress}
-                                  color={
-                                    task.status === 'completed' ? 'success' :
-                                    task.status === 'in_progress' ? 'primary' : 'warning'
-                                  }
-                                  size="sm"
-                                />
                               </div>
-                              <div className="flex items-center gap-2 text-xs text-gray-500">
-                                <Clock size={14} />
-                                <span>截止: {task.dueDate.toLocaleDateString()}</span>
+                              <p className="text-sm text-gray-400 mb-3">{task.description}</p>
+                              <div className="flex items-center justify-between">
+                                <div className="flex-1 mr-4">
+                                  <div className="flex justify-between text-xs text-gray-500 mb-1">
+                                    <span>进度</span>
+                                    <span>{task.progress}%</span>
+                                  </div>
+                                  <ProgressBar
+                                    progress={task.progress}
+                                    color={
+                                      task.status === 'completed' ? 'success' :
+                                      task.status === 'in_progress' ? 'primary' : 'warning'
+                                    }
+                                    size="sm"
+                                  />
+                                </div>
+                                <div className="flex items-center gap-2 text-xs text-gray-500">
+                                  <Clock size={14} />
+                                  <span>截止: {task.dueDate.toLocaleDateString()}</span>
+                                </div>
                               </div>
                             </div>
+                            <ChevronRight
+                              size={16}
+                              className={`text-gray-500 transition-transform flex-shrink-0 mt-2 ${
+                                isExpanded ? 'rotate-90' : ''
+                              }`}
+                            />
                           </div>
-                          <Button variant="ghost" size="sm" rightIcon={<ChevronRight size={16} />}>
-                            详情
-                          </Button>
-                        </div>
-                      </motion.div>
-                    ))}
+
+                          {isExpanded && (
+                            <motion.div
+                              initial={{ opacity: 0, height: 0 }}
+                              animate={{ opacity: 1, height: 'auto' }}
+                              className="mt-4 pt-4 border-t border-white/10"
+                            >
+                              {relatedSpeech && (
+                                <div className="mb-4 p-3 rounded-lg bg-white/5">
+                                  <div className="flex items-center gap-2 mb-2">
+                                    <MessageSquare size={14} className="text-blue-400" />
+                                    <span className="text-sm font-medium text-white">关联复盘片段</span>
+                                  </div>
+                                  <div className="flex items-center gap-3 text-sm text-gray-400">
+                                    <span>时长: {formatDuration(relatedSpeech.duration)}</span>
+                                    <span>·</span>
+                                    <span className="line-clamp-1">{relatedSpeech.content || relatedSpeech.transcript}</span>
+                                  </div>
+                                  {relatedSpeech.annotation && (
+                                    <div className="mt-2 flex flex-wrap gap-1">
+                                      {relatedSpeech.annotation.tags.map((tag) => (
+                                        <span key={tag} className="px-1.5 py-0.5 text-[10px] rounded bg-[#d4af37]/20 text-[#d4af37]">
+                                          {tag}
+                                        </span>
+                                      ))}
+                                    </div>
+                                  )}
+                                </div>
+                              )}
+
+                              {task.replayReason && (
+                                <div className="mb-4 p-3 rounded-lg bg-orange-500/10 border border-orange-500/20">
+                                  <div className="flex items-center gap-2 mb-1">
+                                    <AlertCircle size={14} className="text-orange-400" />
+                                    <span className="text-sm font-medium text-orange-400">待回练原因</span>
+                                  </div>
+                                  <p className="text-sm text-gray-300">{task.replayReason}</p>
+                                </div>
+                              )}
+
+                              <div className="flex items-center justify-between">
+                                <div className="text-xs text-gray-500">
+                                  {task.replayCompleted ? '✓ 回练已完成' : task.relatedSpeechId ? '待完成回练' : `完成进度 ${task.progress}%`}
+                                </div>
+                                {task.status !== 'completed' && (
+                                  <div className="flex items-center gap-2">
+                                    {task.relatedSpeechId && !task.replayCompleted && (
+                                      <Button
+                                        variant="secondary"
+                                        size="sm"
+                                        onClick={() => {
+                                          updateTrainingTask(task.id, {
+                                            replayCompleted: true,
+                                            progress: 100,
+                                            status: 'completed',
+                                          });
+                                        }}
+                                      >
+                                        完成回练
+                                      </Button>
+                                    )}
+                                    {!task.relatedSpeechId && task.status === 'pending' && (
+                                      <Button
+                                        variant="secondary"
+                                        size="sm"
+                                        onClick={() => {
+                                          updateTrainingTask(task.id, {
+                                            status: 'in_progress',
+                                            progress: 10,
+                                          });
+                                        }}
+                                      >
+                                        开始任务
+                                      </Button>
+                                    )}
+                                  </div>
+                                )}
+                              </div>
+                            </motion.div>
+                          )}
+                        </motion.div>
+                      );
+                    })}
                   </div>
                 </CardContent>
               </Card>

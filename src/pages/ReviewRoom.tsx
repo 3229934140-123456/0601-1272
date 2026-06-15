@@ -22,6 +22,11 @@ import {
   ThumbsUp,
   ThumbsDown,
   GitBranch,
+  BookmarkPlus,
+  Tag,
+  RotateCcw,
+  Save,
+  X,
 } from 'lucide-react';
 import { Header } from '../components/layout/Header';
 import { Navigation } from '../components/layout/Navigation';
@@ -37,18 +42,86 @@ import {
   formatDateTime,
   formatDuration,
 } from '../utils/format';
-import type { Speech } from '../types';
+import type { Speech, CoachAnnotation } from '../types';
+
+const PRESET_TAGS = ['逻辑清晰', '论证有力', '数据充分', '表达流畅', '临场应变', '需加强', '偏题', '超时', '情绪化', '结构混乱'];
 
 export default function ReviewRoom() {
-  const { currentDebate, speeches, violations, highlights, scores } = useDebateStore();
+  const { currentDebate, speeches, violations, highlights, scores, updateSpeechAnnotation, addTrainingTask } = useDebateStore();
   const [selectedTimelineIndex, setSelectedTimelineIndex] = useState(0);
   const [isPlaying, setIsPlaying] = useState(false);
   const [currentPlayTime, setCurrentPlayTime] = useState(0);
   const [activeTab, setActiveTab] = useState<'timeline' | 'clashes' | 'vote'>('timeline');
+  const [showAnnotation, setShowAnnotation] = useState(false);
+  const [annotationTags, setAnnotationTags] = useState<string[]>([]);
+  const [annotationComment, setAnnotationComment] = useState('');
+  const [annotationNeedsReplay, setAnnotationNeedsReplay] = useState(false);
+  const [annotationReplayReason, setAnnotationReplayReason] = useState('');
 
   const allDebaters = currentDebate?.teams.flatMap((t) => t.debaters) || [];
 
   const getDebaterById = (id: string) => allDebaters.find((d) => d.id === id);
+
+  useEffect(() => {
+    const item = timelineItems[selectedTimelineIndex];
+    if (item?.type === 'speech' && (item as Speech).annotation) {
+      const ann = (item as Speech).annotation!;
+      setAnnotationTags(ann.tags);
+      setAnnotationComment(ann.comment);
+      setAnnotationNeedsReplay(ann.needsReplay);
+      setAnnotationReplayReason(ann.replayReason);
+    } else {
+      setAnnotationTags([]);
+      setAnnotationComment('');
+      setAnnotationNeedsReplay(false);
+      setAnnotationReplayReason('');
+    }
+    setShowAnnotation(false);
+  }, [selectedTimelineIndex]);
+
+  const handleSaveAnnotation = () => {
+    const item = timelineItems[selectedTimelineIndex];
+    if (!item || item.type !== 'speech') return;
+    const annotation: CoachAnnotation = {
+      tags: annotationTags,
+      comment: annotationComment,
+      needsReplay: annotationNeedsReplay,
+      replayReason: annotationReplayReason,
+      createdAt: new Date(),
+    };
+    updateSpeechAnnotation(item.id, annotation);
+    if (annotationNeedsReplay) {
+      const debater = getDebaterById(item.debaterId);
+      addTrainingTask({
+        id: `replay-${Date.now()}`,
+        title: `回练: ${debater?.name || '辩手'}的发言片段`,
+        description: annotationComment || '教练标记需要回练的发言片段',
+        status: 'pending',
+        deadline: new Date(Date.now() + 7 * 24 * 3600 * 1000),
+        dueDate: new Date(Date.now() + 7 * 24 * 3600 * 1000),
+        reward: 50,
+        progress: 0,
+        priority: annotationTags.includes('结构混乱') || annotationTags.includes('偏题') ? 'high' : 'medium',
+        relatedSpeechId: item.id,
+        replayReason: annotationReplayReason,
+        replayCompleted: false,
+      });
+    }
+    setShowAnnotation(false);
+  };
+
+  const toggleTag = (tag: string) => {
+    setAnnotationTags((prev) =>
+      prev.includes(tag) ? prev.filter((t) => t !== tag) : [...prev, tag]
+    );
+  };
+
+  const handleAddToReplayQueue = () => {
+    const item = timelineItems[selectedTimelineIndex];
+    if (!item || item.type !== 'speech') return;
+    setAnnotationNeedsReplay(true);
+    setShowAnnotation(true);
+  };
 
   const timelineItems = [
     ...speeches.map((s) => ({ ...s, type: 'speech' as const })),
@@ -235,6 +308,20 @@ export default function ReviewRoom() {
         <p className="text-xs text-gray-400 mt-1 line-clamp-1">
           {item.content || item.description}
         </p>
+        {item.type === 'speech' && (item.annotation || item.needsReplay) && (
+          <div className="flex items-center gap-1 mt-1 flex-wrap">
+            {item.annotation?.tags?.map((tag: string) => (
+              <span key={tag} className="px-1.5 py-0.5 text-[10px] rounded bg-white/10 text-gray-400">
+                {tag}
+              </span>
+            ))}
+            {item.needsReplay && (
+              <span className="px-1.5 py-0.5 text-[10px] rounded bg-orange-500/20 text-orange-400 flex items-center gap-0.5">
+                <RotateCcw size={8} />回练
+              </span>
+            )}
+          </div>
+        )}
         {isSelected && (
           <motion.div
             layoutId="timeline-indicator"
@@ -381,6 +468,133 @@ export default function ReviewRoom() {
                         <SkipForward size={20} />
                       </Button>
                     </div>
+
+                    {selectedItem?.type === 'speech' && (
+                      <div className="mt-6 pt-6 border-t border-white/10">
+                        <div className="flex items-center justify-between mb-4">
+                          <div className="flex items-center gap-2">
+                            <Tag size={16} className="text-[#d4af37]" />
+                            <span className="text-sm font-medium text-white">教练批注</span>
+                            {selectedItem.annotation && (
+                              <span className="px-2 py-0.5 text-[10px] rounded-full bg-green-500/20 text-green-400">已批注</span>
+                            )}
+                            {selectedItem.needsReplay && (
+                              <span className="px-2 py-0.5 text-[10px] rounded-full bg-orange-500/20 text-orange-400 flex items-center gap-1">
+                                <RotateCcw size={8} />待回练
+                              </span>
+                            )}
+                          </div>
+                          <div className="flex items-center gap-2">
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              leftIcon={<BookmarkPlus size={14} />}
+                              onClick={handleAddToReplayQueue}
+                            >
+                              加入回练
+                            </Button>
+                            <Button
+                              variant="secondary"
+                              size="sm"
+                              leftIcon={showAnnotation ? <X size={14} /> : <Save size={14} />}
+                              onClick={() => setShowAnnotation(!showAnnotation)}
+                            >
+                              {showAnnotation ? '收起' : '批注'}
+                            </Button>
+                          </div>
+                        </div>
+
+                        {selectedItem.annotation && !showAnnotation && (
+                          <div className="p-3 rounded-lg bg-white/5 mb-3">
+                            {selectedItem.annotation.tags.length > 0 && (
+                              <div className="flex flex-wrap gap-1 mb-2">
+                                {selectedItem.annotation.tags.map((tag: string) => (
+                                  <span key={tag} className="px-2 py-0.5 text-xs rounded-full bg-[#d4af37]/20 text-[#d4af37]">
+                                    {tag}
+                                  </span>
+                                ))}
+                              </div>
+                            )}
+                            {selectedItem.annotation.comment && (
+                              <p className="text-sm text-gray-300">{selectedItem.annotation.comment}</p>
+                            )}
+                            {selectedItem.annotation.needsReplay && selectedItem.annotation.replayReason && (
+                              <p className="text-xs text-orange-400 mt-2">
+                                回练原因: {selectedItem.annotation.replayReason}
+                              </p>
+                            )}
+                          </div>
+                        )}
+
+                        {showAnnotation && (
+                          <motion.div
+                            initial={{ opacity: 0, height: 0 }}
+                            animate={{ opacity: 1, height: 'auto' }}
+                            exit={{ opacity: 0, height: 0 }}
+                            className="space-y-4"
+                          >
+                            <div>
+                              <label className="block text-xs text-gray-400 mb-2">标签</label>
+                              <div className="flex flex-wrap gap-2">
+                                {PRESET_TAGS.map((tag) => (
+                                  <button
+                                    key={tag}
+                                    onClick={() => toggleTag(tag)}
+                                    className={`px-2.5 py-1 text-xs rounded-full transition-all ${
+                                      annotationTags.includes(tag)
+                                        ? 'bg-[#d4af37]/30 text-[#d4af37] border border-[#d4af37]/50'
+                                        : 'bg-white/5 text-gray-400 border border-white/10 hover:border-white/20'
+                                    }`}
+                                  >
+                                    {tag}
+                                  </button>
+                                ))}
+                              </div>
+                            </div>
+                            <div>
+                              <label className="block text-xs text-gray-400 mb-2">短评</label>
+                              <textarea
+                                value={annotationComment}
+                                onChange={(e) => setAnnotationComment(e.target.value)}
+                                placeholder="写下你的点评..."
+                                rows={2}
+                                className="w-full p-3 rounded-lg bg-white/5 border border-white/10 text-white text-sm placeholder:text-gray-600 focus:outline-none focus:border-[#d4af37] resize-none"
+                              />
+                            </div>
+                            <div>
+                              <label className="flex items-center gap-2 cursor-pointer">
+                                <input
+                                  type="checkbox"
+                                  checked={annotationNeedsReplay}
+                                  onChange={(e) => setAnnotationNeedsReplay(e.target.checked)}
+                                  className="w-4 h-4 rounded bg-white/5 border-white/20 text-orange-500 focus:ring-orange-500"
+                                />
+                                <span className="text-sm text-gray-300">标记需要回练</span>
+                              </label>
+                              {annotationNeedsReplay && (
+                                <input
+                                  type="text"
+                                  value={annotationReplayReason}
+                                  onChange={(e) => setAnnotationReplayReason(e.target.value)}
+                                  placeholder="回练原因..."
+                                  className="mt-2 w-full p-2.5 rounded-lg bg-white/5 border border-white/10 text-white text-sm placeholder:text-gray-600 focus:outline-none focus:border-orange-500"
+                                />
+                              )}
+                            </div>
+                            <div className="flex justify-end">
+                              <Button
+                                variant="primary"
+                                size="sm"
+                                leftIcon={<Save size={14} />}
+                                onClick={handleSaveAnnotation}
+                              >
+                                保存批注
+                              </Button>
+                            </div>
+                          </motion.div>
+                        )}
+                      </div>
+                    )}
                   </CardContent>
                 </Card>
               </motion.div>

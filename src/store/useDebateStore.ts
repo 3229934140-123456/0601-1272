@@ -1,5 +1,5 @@
 import { create } from 'zustand';
-import type { Debate, Team, Round, ArgumentCard, Danmaku, Violation, Score, Speech, Highlight, Debater } from '../types';
+import type { Debate, Team, Round, ArgumentCard, Danmaku, Violation, Score, Speech, Highlight, Debater, CoachAnnotation, TrainingTask } from '../types';
 import { currentDebate, mockArgumentCards, mockDanmakus, mockViolations, mockScores, mockSpeech, mockDebates } from '../data/mockDebates';
 
 interface DebateState {
@@ -33,8 +33,12 @@ interface DebateState {
   togglePause: () => void;
   setIsPaused: (paused: boolean) => void;
   addSpeech: (speech: Speech) => void;
+  updateSpeechAnnotation: (speechId: string, annotation: CoachAnnotation) => void;
   updateTeamScore: (debaterId: string, scoreChange: number) => void;
   resetRoundState: () => void;
+  trainingTasks: TrainingTask[];
+  addTrainingTask: (task: TrainingTask) => void;
+  updateTrainingTask: (taskId: string, updates: Partial<TrainingTask>) => void;
 }
 
 export const useDebateStore = create<DebateState>((set, get) => ({
@@ -51,6 +55,7 @@ export const useDebateStore = create<DebateState>((set, get) => ({
   currentRoundIndex: 0,
   timeRemaining: 180,
   currentSpeaker: null,
+  trainingTasks: [],
 
   addDebate: (debate) =>
     set((state) => ({
@@ -152,6 +157,23 @@ export const useDebateStore = create<DebateState>((set, get) => ({
 
   addSpeech: (speech) =>
     set((state) => ({ speeches: [...state.speeches, speech] })),
+
+  updateSpeechAnnotation: (speechId, annotation) =>
+    set((state) => ({
+      speeches: state.speeches.map((s) =>
+        s.id === speechId ? { ...s, annotation, needsReplay: annotation.needsReplay } : s
+      ),
+    })),
+
+  addTrainingTask: (task) =>
+    set((state) => ({ trainingTasks: [...state.trainingTasks, task] })),
+
+  updateTrainingTask: (taskId, updates) =>
+    set((state) => ({
+      trainingTasks: state.trainingTasks.map((t) =>
+        t.id === taskId ? { ...t, ...updates } : t
+      ),
+    })),
 
   updateTeamScore: (debaterId, scoreChange) =>
     set((state) => {

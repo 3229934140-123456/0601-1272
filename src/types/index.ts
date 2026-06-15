@@ -50,6 +50,16 @@ export interface Speech {
   highlights: Highlight[];
   content?: string;
   timestamp: Date;
+  annotation?: CoachAnnotation;
+  needsReplay?: boolean;
+}
+
+export interface CoachAnnotation {
+  tags: string[];
+  comment: string;
+  needsReplay: boolean;
+  replayReason: string;
+  createdAt: Date;
 }
 
 export interface Score {
@@ -173,6 +183,9 @@ export interface TrainingTask {
   reward: number;
   progress: number;
   priority: 'low' | 'medium' | 'high';
+  relatedSpeechId?: string;
+  replayReason?: string;
+  replayCompleted?: boolean;
 }
 
 export interface DebateFormat {

@@ -124,8 +124,6 @@ export default function CompetitionArena() {
     if (isSpeaking) {
       const actualDuration = (currentRound?.duration || 180) - timerTime;
       setIsSpeaking(false);
-      pause();
-      setIsPaused(true);
       if (currentSpeaker) {
         const content = `${currentSpeaker.name}在"${currentRound?.name}"环节的发言，时长${formatDuration(actualDuration)}，主要论述了${currentRound?.side === 'affirmative' ? '正方' : '反方'}观点。`;
         addSpeech({
@@ -139,6 +137,9 @@ export default function CompetitionArena() {
           highlights: [],
         });
       }
+      reset(currentRound?.duration || 180);
+      setCurrentSpeaker(null);
+      setIsPaused(false);
       setSelectedSpeakerId('');
     } else {
       const allDebaters = currentDebate?.teams.flatMap((t) => t.debaters) || [];
@@ -147,6 +148,7 @@ export default function CompetitionArena() {
         : currentUser;
       if (!selectedDebater) return;
       setIsSpeaking(true);
+      reset(currentRound?.duration || 180);
       start();
       setIsPaused(false);
       setCurrentSpeaker(selectedDebater as any);
