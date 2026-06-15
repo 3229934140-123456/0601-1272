@@ -173,6 +173,13 @@ export interface Badge {
   requirementCount: number;
 }
 
+export interface ReplaySession {
+  id: string;
+  completedAt: Date;
+  duration: number;
+  summary: string;
+}
+
 export interface TrainingTask {
   id: string;
   title: string;
@@ -186,6 +193,12 @@ export interface TrainingTask {
   relatedSpeechId?: string;
   replayReason?: string;
   replayCompleted?: boolean;
+  replaySessions?: ReplaySession[];
+  totalReplayCount?: number;
+  targetReplayCount?: number;
+  lastReplayAt?: Date;
+  nextSuggestedAt?: Date;
+  startedAt?: Date;
 }
 
 export interface DebateFormat {

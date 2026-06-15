@@ -21,6 +21,14 @@ import {
   Users,
   BookOpen,
   AlertCircle,
+  RotateCcw,
+  Play,
+  X,
+  Filter,
+  Sparkles,
+  CalendarClock,
+  Activity,
+  RefreshCcw,
 } from 'lucide-react';
 import {
   LineChart,
@@ -54,16 +62,28 @@ import { useDebateStore } from '../store/useDebateStore';
 import { mockStatistics, mockBadges, mockTrainingTasks } from '../data/mockStatistics';
 import { mockDebaters } from '../data/mockDebaters';
 import { formatDuration, formatNumber, formatPercentage } from '../utils/format';
+import type { ReplaySession } from '../types';
 
 const CHART_COLORS = ['#d4af37', '#1e3a5f', '#0d7377', '#c41e3a', '#6366f1', '#ec4899'];
 
 export default function Growth() {
   const { currentUser } = useUserStore();
-  const { trainingTasks, speeches, updateTrainingTask } = useDebateStore();
-  const [activeTab, setActiveTab] = useState<'overview' | 'badges' | 'ranking' | 'tasks'>('overview');
+  const { trainingTasks, speeches, updateTrainingTask, addReplaySession, startTask } = useDebateStore();
+  const [activeTab, setActiveTab] = useState<'overview' | 'badges' | 'ranking' | 'tasks' | 'plan'>('overview');
   const [expandedTaskId, setExpandedTaskId] = useState<string | null>(null);
+  const [replayModalTaskId, setReplayModalTaskId] = useState<string | null>(null);
+  const [replayTimer, setReplayTimer] = useState(0);
+  const [isReplaying, setIsReplaying] = useState(false);
+  const [replaySummary, setReplaySummary] = useState('');
+  const replayTimerRef = useState<number | null>(null) as any;
+
+  const [filterDebater, setFilterDebater] = useState<string>('all');
+  const [filterTag, setFilterTag] = useState<string>('all');
+  const [filterPriority, setFilterPriority] = useState<string>('all');
+
   const stats = mockStatistics;
   const allTasks = [...mockTrainingTasks, ...trainingTasks];
+  const replayTasks = allTasks.filter((t) => t.relatedSpeechId);
 
   const speakingTimeData = stats.charts.speechTime;
   const responseSpeedData = stats.charts.responseSpeed;
@@ -79,6 +99,69 @@ export default function Growth() {
 
   const unlockedBadges = mockBadges.filter((b) => b.unlocked);
   const lockedBadges = mockBadges.filter((b) => !b.unlocked);
+
+  const allDebaters = mockDebaters;
+
+  const today = new Date().toDateString();
+  const todayTasks = replayTasks.filter((t) => {
+    const due = new Date(t.dueDate).toDateString();
+    const next = t.nextSuggestedAt ? new Date(t.nextSuggestedAt).toDateString() : due;
+    return due === today || next === today;
+  });
+
+  const nextSuggested = replayTasks
+    .filter((t) => !t.replayCompleted && t.status !== 'completed')
+    .sort((a, b) => new Date(a.nextSuggestedAt || a.dueDate).getTime() - new Date(b.nextSuggestedAt || b.dueDate).getTime())[0];
+
+  const filteredReplayTasks = replayTasks.filter((t) => {
+    if (filterPriority !== 'all' && t.priority !== filterPriority) return false;
+    if (filterDebater !== 'all' || filterTag !== 'all') {
+      const speech = speeches.find((s) => s.id === t.relatedSpeechId);
+      if (!speech) return false;
+      if (filterDebater !== 'all' && speech.debaterId !== filterDebater) return false;
+      if (filterTag !== 'all' && !speech.annotation?.tags.includes(filterTag)) return false;
+    }
+    return true;
+  });
+
+  const startReplayTimer = () => {
+    setIsReplaying(true);
+    setReplayTimer(0);
+    if (replayTimerRef[1]) clearInterval(replayTimerRef[1]);
+    replayTimerRef[1] = window.setInterval(() => {
+      setReplayTimer((prev) => prev + 1);
+    }, 1000);
+  };
+
+  const stopReplayTimer = () => {
+    setIsReplaying(false);
+    if (replayTimerRef[1]) {
+      clearInterval(replayTimerRef[1]);
+      replayTimerRef[1] = null;
+    }
+  };
+
+  const submitReplaySession = () => {
+    if (!replayModalTaskId) return;
+    const session: ReplaySession = {
+      id: `session-${Date.now()}`,
+      completedAt: new Date(),
+      duration: replayTimer,
+      summary: replaySummary || '完成了一次回练练习',
+    };
+    addReplaySession(replayModalTaskId, session);
+    stopReplayTimer();
+    setReplayTimer(0);
+    setReplaySummary('');
+    setReplayModalTaskId(null);
+  };
+
+  const cancelReplay = () => {
+    stopReplayTimer();
+    setReplayTimer(0);
+    setReplaySummary('');
+    setReplayModalTaskId(null);
+  };
 
   return (
     <div className="min-h-screen">
@@ -99,8 +182,8 @@ export default function Growth() {
               <p className="text-gray-400">统计数据、成就徽章、训练任务</p>
             </div>
             <div className="flex items-center gap-2">
-              <div className="flex bg-white/5 rounded-lg p-1">
-                {['overview', 'badges', 'ranking', 'tasks'].map((tab) => (
+              <div className="flex bg-white/5 rounded-lg p-1 flex-wrap">
+                {['overview', 'badges', 'ranking', 'tasks', 'plan'].map((tab) => (
                   <button
                     key={tab}
                     onClick={() => setActiveTab(tab as any)}
@@ -112,7 +195,8 @@ export default function Growth() {
                   >
                     {tab === 'overview' ? '概览' :
                      tab === 'badges' ? '徽章' :
-                     tab === 'ranking' ? '排名' : '任务'}
+                     tab === 'ranking' ? '排名' :
+                     tab === 'tasks' ? '任务' : '回练计划'}
                   </button>
                 ))}
               </div>
@@ -820,38 +904,61 @@ export default function Growth() {
                               )}
 
                               <div className="flex items-center justify-between">
-                                <div className="text-xs text-gray-500">
-                                  {task.replayCompleted ? '✓ 回练已完成' : task.relatedSpeechId ? '待完成回练' : `完成进度 ${task.progress}%`}
+                                <div className="text-xs text-gray-500 space-y-1">
+                                  <div>
+                                    {task.replayCompleted ? '✓ 回练已完成' : task.relatedSpeechId ? '待完成回练' : `完成进度 ${task.progress}%`}
+                                  </div>
+                                  {task.relatedSpeechId && (
+                                    <div className="text-gray-600">
+                                      已练 {task.totalReplayCount || 0}/{task.targetReplayCount || 3} 次
+                                      {task.lastReplayAt && (
+                                        <> · 上次 {new Date(task.lastReplayAt).toLocaleDateString()}</>
+                                      )}
+                                    </div>
+                                  )}
+                                  {task.replaySessions && task.replaySessions.length > 0 && (
+                                    <div className="pt-1 mt-1 border-t border-white/5 space-y-0.5 max-h-24 overflow-y-auto">
+                                      {(task.replaySessions as any[]).slice().reverse().map((s) => (
+                                        <div key={s.id} className="text-[10px] text-gray-600">
+                                          • {new Date(s.completedAt).toLocaleString()} · {formatDuration(s.duration)}
+                                        </div>
+                                      ))}
+                                    </div>
+                                  )}
                                 </div>
                                 {task.status !== 'completed' && (
                                   <div className="flex items-center gap-2">
-                                    {task.relatedSpeechId && !task.replayCompleted && (
+                                    {task.relatedSpeechId && (!task.replayCompleted || (task.totalReplayCount || 0) < (task.targetReplayCount || 3)) && (
                                       <Button
-                                        variant="secondary"
+                                        variant="primary"
                                         size="sm"
-                                        onClick={() => {
-                                          updateTrainingTask(task.id, {
-                                            replayCompleted: true,
-                                            progress: 100,
-                                            status: 'completed',
-                                          });
-                                        }}
+                                        leftIcon={<Play size={14} />}
+                                        onClick={() => setReplayModalTaskId(task.id)}
                                       >
-                                        完成回练
+                                        发起回练
                                       </Button>
                                     )}
                                     {!task.relatedSpeechId && task.status === 'pending' && (
                                       <Button
                                         variant="secondary"
                                         size="sm"
+                                        onClick={() => startTask(task.id)}
+                                      >
+                                        开始任务
+                                      </Button>
+                                    )}
+                                    {!task.relatedSpeechId && task.status === 'in_progress' && (
+                                      <Button
+                                        variant="secondary"
+                                        size="sm"
                                         onClick={() => {
                                           updateTrainingTask(task.id, {
-                                            status: 'in_progress',
-                                            progress: 10,
+                                            status: 'completed',
+                                            progress: 100,
                                           });
                                         }}
                                       >
-                                        开始任务
+                                        标记完成
                                       </Button>
                                     )}
                                   </div>
@@ -865,6 +972,309 @@ export default function Growth() {
                   </div>
                 </CardContent>
               </Card>
+            </motion.div>
+          </div>
+        )}
+
+        {activeTab === 'plan' && (
+          <div className="space-y-6">
+            <motion.div
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: 0.1 }}
+            >
+              <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+                <Card gradient>
+                  <CardContent className="p-5">
+                    <div className="flex items-center gap-2 mb-2">
+                      <CalendarClock size={18} className="text-[#d4af37]" />
+                      <span className="text-xs text-gray-400">今日训练</span>
+                    </div>
+                    <div className="text-3xl font-bold text-white">{todayTasks.length}</div>
+                    <p className="text-xs text-gray-500 mt-1">个片段待完成</p>
+                  </CardContent>
+                </Card>
+                <Card className="bg-blue-500/10 border-blue-500/20">
+                  <CardContent className="p-5">
+                    <div className="flex items-center gap-2 mb-2">
+                      <Activity size={18} className="text-blue-400" />
+                      <span className="text-xs text-gray-400">本周累计</span>
+                    </div>
+                    <div className="text-3xl font-bold text-white">
+                      {replayTasks.reduce((sum, t) => sum + (t.replaySessions?.length || 0), 0)}
+                    </div>
+                    <p className="text-xs text-gray-500 mt-1">次回练</p>
+                  </CardContent>
+                </Card>
+                <Card className="bg-green-500/10 border-green-500/20">
+                  <CardContent className="p-5">
+                    <div className="flex items-center gap-2 mb-2">
+                      <CheckCircle2 size={18} className="text-green-400" />
+                      <span className="text-xs text-gray-400">已达标</span>
+                    </div>
+                    <div className="text-3xl font-bold text-white">
+                      {replayTasks.filter((t) => (t.totalReplayCount || 0) >= (t.targetReplayCount || 3)).length}
+                    </div>
+                    <p className="text-xs text-gray-500 mt-1">个片段</p>
+                  </CardContent>
+                </Card>
+                <Card className="bg-purple-500/10 border-purple-500/20">
+                  <CardContent className="p-5">
+                    <div className="flex items-center gap-2 mb-2">
+                      <Sparkles size={18} className="text-purple-400" />
+                      <span className="text-xs text-gray-400">下一次建议</span>
+                    </div>
+                    <div className="text-sm font-medium text-white line-clamp-2">
+                      {nextSuggested ? nextSuggested.title : '暂无待回练片段'}
+                    </div>
+                    <p className="text-xs text-gray-500 mt-1">
+                      {nextSuggested ? `${nextSuggested.totalReplayCount || 0}/${nextSuggested.targetReplayCount || 3} 次` : '休息一下吧'}
+                    </p>
+                  </CardContent>
+                </Card>
+              </div>
+            </motion.div>
+
+            <motion.div
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: 0.15 }}
+            >
+              <Card>
+                <CardHeader>
+                  <div className="flex items-center justify-between flex-wrap gap-3">
+                    <CardTitle className="flex items-center gap-2">
+                      <RefreshCcw size={20} />
+                      回练计划
+                    </CardTitle>
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <div className="flex items-center gap-1">
+                        <Filter size={14} className="text-gray-500" />
+                        <select
+                          value={filterDebater}
+                          onChange={(e) => setFilterDebater(e.target.value)}
+                          className="px-2 py-1.5 text-xs rounded-md bg-white/5 border border-white/10 text-gray-300 focus:outline-none focus:border-[#d4af37]"
+                        >
+                          <option value="all">全部辩手</option>
+                          {allDebaters.map((d) => (
+                            <option key={d.id} value={d.id}>{d.name}</option>
+                          ))}
+                        </select>
+                      </div>
+                      <select
+                        value={filterTag}
+                        onChange={(e) => setFilterTag(e.target.value)}
+                        className="px-2 py-1.5 text-xs rounded-md bg-white/5 border border-white/10 text-gray-300 focus:outline-none focus:border-[#d4af37]"
+                      >
+                        <option value="all">全部标签</option>
+                        <option value="需加强">需加强</option>
+                        <option value="偏题">偏题</option>
+                        <option value="结构混乱">结构混乱</option>
+                        <option value="超时">超时</option>
+                        <option value="情绪化">情绪化</option>
+                      </select>
+                      <select
+                        value={filterPriority}
+                        onChange={(e) => setFilterPriority(e.target.value)}
+                        className="px-2 py-1.5 text-xs rounded-md bg-white/5 border border-white/10 text-gray-300 focus:outline-none focus:border-[#d4af37]"
+                      >
+                        <option value="all">全部紧急度</option>
+                        <option value="high">高</option>
+                        <option value="medium">中</option>
+                        <option value="low">低</option>
+                      </select>
+                    </div>
+                  </div>
+                </CardHeader>
+                <CardContent>
+                  {filteredReplayTasks.length === 0 ? (
+                    <div className="py-16 text-center">
+                      <RotateCcw size={40} className="mx-auto text-gray-600 mb-3" />
+                      <p className="text-gray-500">暂无符合筛选条件的回练任务</p>
+                    </div>
+                  ) : (
+                    <div className="space-y-3">
+                      {filteredReplayTasks.map((task, index) => {
+                        const speech = speeches.find((s) => s.id === task.relatedSpeechId);
+                        const debater = allDebaters.find((d) => d.id === speech?.debaterId);
+                        const isToday = todayTasks.some((t) => t.id === task.id);
+                        const reached = (task.totalReplayCount || 0) >= (task.targetReplayCount || 3);
+
+                        return (
+                          <motion.div
+                            key={task.id}
+                            initial={{ opacity: 0, x: -20 }}
+                            animate={{ opacity: 1, x: 0 }}
+                            transition={{ delay: index * 0.05 }}
+                            className={`p-4 rounded-xl transition-colors ${
+                              reached
+                                ? 'bg-green-500/10 border border-green-500/20'
+                                : isToday
+                                ? 'bg-[#d4af37]/10 border border-[#d4af37]/30'
+                                : 'bg-white/5 border border-white/10'
+                            }`}
+                          >
+                            <div className="flex items-start gap-4">
+                              <Avatar name={debater?.name || '?'} size="md" avatar={debater?.avatar} />
+                              <div className="flex-1 min-w-0">
+                                <div className="flex items-center justify-between mb-1 flex-wrap gap-2">
+                                  <div className="flex items-center gap-2 flex-wrap">
+                                    <h4 className="text-white font-medium">{task.title}</h4>
+                                    {isToday && (
+                                      <span className="px-2 py-0.5 text-[10px] rounded-full bg-[#d4af37]/30 text-[#d4af37]">今日</span>
+                                    )}
+                                    {reached && (
+                                      <span className="px-2 py-0.5 text-[10px] rounded-full bg-green-500/30 text-green-400 flex items-center gap-0.5">
+                                        <CheckCircle2 size={8} />达标
+                                      </span>
+                                    )}
+                                    <span className={`px-2 py-0.5 text-[10px] rounded-full ${
+                                      task.priority === 'high'
+                                        ? 'bg-red-500/20 text-red-400'
+                                        : task.priority === 'medium'
+                                        ? 'bg-yellow-500/20 text-yellow-400'
+                                        : 'bg-gray-500/20 text-gray-400'
+                                    }`}>
+                                      {task.priority === 'high' ? '紧急' : task.priority === 'medium' ? '中等' : '一般'}
+                                    </span>
+                                  </div>
+                                </div>
+                                <p className="text-sm text-gray-400 mb-2">{task.description}</p>
+                                {speech?.annotation && speech.annotation.tags.length > 0 && (
+                                  <div className="flex flex-wrap gap-1 mb-2">
+                                    {speech.annotation.tags.map((tag) => (
+                                      <span key={tag} className="px-1.5 py-0.5 text-[10px] rounded bg-white/10 text-gray-400">
+                                        {tag}
+                                      </span>
+                                    ))}
+                                  </div>
+                                )}
+                                <div className="flex items-center justify-between gap-4 flex-wrap">
+                                  <div className="flex-1 min-w-[200px]">
+                                    <div className="flex justify-between text-xs text-gray-500 mb-1">
+                                      <span>回练进度</span>
+                                      <span>{task.totalReplayCount || 0}/{task.targetReplayCount || 3} 次</span>
+                                    </div>
+                                    <ProgressBar
+                                      progress={task.progress}
+                                      color={reached ? 'success' : isToday ? 'primary' : 'warning'}
+                                      size="sm"
+                                    />
+                                  </div>
+                                  <div className="flex items-center gap-2">
+                                    {task.lastReplayAt && (
+                                      <span className="text-[11px] text-gray-500">
+                                        上次 {new Date(task.lastReplayAt).toLocaleDateString()}
+                                      </span>
+                                    )}
+                                    {task.nextSuggestedAt && !reached && (
+                                      <span className="text-[11px] text-blue-400">
+                                        建议 {new Date(task.nextSuggestedAt).toLocaleDateString()}
+                                      </span>
+                                    )}
+                                    <Button
+                                      variant="primary"
+                                      size="sm"
+                                      leftIcon={<Play size={14} />}
+                                      onClick={() => setReplayModalTaskId(task.id)}
+                                    >
+                                      回练
+                                    </Button>
+                                  </div>
+                                </div>
+                              </div>
+                            </div>
+                          </motion.div>
+                        );
+                      })}
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
+            </motion.div>
+          </div>
+        )}
+
+        {replayModalTaskId && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
+            <motion.div
+              initial={{ opacity: 0, scale: 0.9 }}
+              animate={{ opacity: 1, scale: 1 }}
+              className="w-full max-w-lg rounded-2xl bg-[#0d1117] border border-white/10 shadow-2xl overflow-hidden"
+            >
+              <div className="flex items-center justify-between p-5 border-b border-white/10">
+                <h3 className="text-lg font-bold text-white flex items-center gap-2">
+                  <RotateCcw size={18} className="text-[#d4af37]" />
+                  发起回练
+                </h3>
+                <button
+                  onClick={cancelReplay}
+                  className="w-8 h-8 rounded-full bg-white/5 hover:bg-white/10 flex items-center justify-center text-gray-400 transition-colors"
+                >
+                  <X size={16} />
+                </button>
+              </div>
+              <div className="p-5 space-y-5">
+                <div className="p-3 rounded-xl bg-white/5">
+                  <p className="text-sm font-medium text-white mb-1">
+                    {allTasks.find((t) => t.id === replayModalTaskId)?.title}
+                  </p>
+                  <p className="text-xs text-gray-400">
+                    {allTasks.find((t) => t.id === replayModalTaskId)?.replayReason
+                      || allTasks.find((t) => t.id === replayModalTaskId)?.description}
+                  </p>
+                </div>
+
+                <div className="text-center py-6">
+                  <div className="text-5xl font-bold text-[#d4af37] mb-2 tabular-nums">
+                    {formatDuration(replayTimer)}
+                  </div>
+                  <p className="text-sm text-gray-500">
+                    {isReplaying ? '回练进行中，结束后记得填写小结' : '点击下方按钮开始计时'}
+                  </p>
+                </div>
+
+                {!isReplaying ? (
+                  <Button
+                    variant="primary"
+                    size="lg"
+                    leftIcon={<Play size={18} />}
+                    onClick={startReplayTimer}
+                    className="w-full"
+                  >
+                    开始回练
+                  </Button>
+                ) : (
+                  <div className="space-y-3">
+                    <textarea
+                      value={replaySummary}
+                      onChange={(e) => setReplaySummary(e.target.value)}
+                      placeholder="本次回练小结：今天练习了立论框架，改善了开篇的节奏感..."
+                      rows={3}
+                      className="w-full p-3 rounded-xl bg-white/5 border border-white/10 text-white text-sm placeholder:text-gray-600 focus:outline-none focus:border-[#d4af37] resize-none"
+                    />
+                    <div className="flex items-center gap-3">
+                      <Button
+                        variant="ghost"
+                        size="lg"
+                        onClick={cancelReplay}
+                        className="flex-1"
+                      >
+                        取消
+                      </Button>
+                      <Button
+                        variant="primary"
+                        size="lg"
+                        leftIcon={<CheckCircle2 size={18} />}
+                        onClick={submitReplaySession}
+                        className="flex-1"
+                      >
+                        完成回练 ({formatDuration(replayTimer)})
+                      </Button>
+                    </div>
+                  </div>
+                )}
+              </div>
             </motion.div>
           </div>
         )}

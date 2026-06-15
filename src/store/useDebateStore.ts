@@ -1,5 +1,5 @@
 import { create } from 'zustand';
-import type { Debate, Team, Round, ArgumentCard, Danmaku, Violation, Score, Speech, Highlight, Debater, CoachAnnotation, TrainingTask } from '../types';
+import type { Debate, Team, Round, ArgumentCard, Danmaku, Violation, Score, Speech, Highlight, Debater, CoachAnnotation, TrainingTask, ReplaySession } from '../types';
 import { currentDebate, mockArgumentCards, mockDanmakus, mockViolations, mockScores, mockSpeech, mockDebates } from '../data/mockDebates';
 
 interface DebateState {
@@ -38,7 +38,10 @@ interface DebateState {
   resetRoundState: () => void;
   trainingTasks: TrainingTask[];
   addTrainingTask: (task: TrainingTask) => void;
+  addOrUpdateReplayTask: (speechId: string, taskData: Partial<TrainingTask>) => TrainingTask;
   updateTrainingTask: (taskId: string, updates: Partial<TrainingTask>) => void;
+  addReplaySession: (taskId: string, session: ReplaySession) => void;
+  startTask: (taskId: string) => void;
 }
 
 export const useDebateStore = create<DebateState>((set, get) => ({
@@ -167,6 +170,78 @@ export const useDebateStore = create<DebateState>((set, get) => ({
 
   addTrainingTask: (task) =>
     set((state) => ({ trainingTasks: [...state.trainingTasks, task] })),
+
+  addOrUpdateReplayTask: (speechId, taskData) => {
+    const existing = get().trainingTasks.find((t) => t.relatedSpeechId === speechId);
+    if (existing) {
+      get().updateTrainingTask(existing.id, {
+        ...taskData,
+        status: taskData.status || existing.status,
+        progress: taskData.status === 'pending' && existing.status === 'pending' ? existing.progress : (taskData.progress ?? existing.progress),
+      });
+      return { ...existing, ...taskData };
+    } else {
+      const newTask: TrainingTask = {
+        id: `replay-${Date.now()}`,
+        title: taskData.title || '回练任务',
+        description: taskData.description || '',
+        status: 'pending',
+        deadline: new Date(Date.now() + 7 * 24 * 3600 * 1000),
+        dueDate: new Date(Date.now() + 7 * 24 * 3600 * 1000),
+        reward: 50,
+        progress: 0,
+        priority: 'medium',
+        replaySessions: [],
+        totalReplayCount: 0,
+        targetReplayCount: 3,
+        ...taskData,
+        relatedSpeechId: speechId,
+        replayCompleted: false,
+      } as any;
+      set((state) => ({ trainingTasks: [...state.trainingTasks, newTask] }));
+      return newTask;
+    }
+  },
+
+  addReplaySession: (taskId, session) =>
+    set((state) => {
+      const task = state.trainingTasks.find((t) => t.id === taskId);
+      if (!task) return {};
+      const sessions = [...(task.replaySessions || []), session];
+      const newCount = sessions.length;
+      const target = task.targetReplayCount || 3;
+      const progress = Math.min(100, Math.round((newCount / target) * 100));
+      return {
+        trainingTasks: state.trainingTasks.map((t) =>
+          t.id === taskId
+            ? {
+                ...t,
+                replaySessions: sessions,
+                totalReplayCount: newCount,
+                replayCompleted: newCount >= target,
+                lastReplayAt: session.completedAt,
+                nextSuggestedAt: new Date(Date.now() + 2 * 24 * 3600 * 1000),
+                progress,
+                status: newCount >= target ? 'completed' : (t.status === 'pending' ? 'in_progress' : t.status),
+              }
+            : t
+        ),
+      };
+    }),
+
+  startTask: (taskId) =>
+    set((state) => ({
+      trainingTasks: state.trainingTasks.map((t) =>
+        t.id === taskId
+          ? {
+              ...t,
+              status: 'in_progress',
+              progress: Math.max(t.progress, 10),
+              startedAt: t.startedAt || new Date(),
+            }
+          : t
+      ),
+    })),
 
   updateTrainingTask: (taskId, updates) =>
     set((state) => ({

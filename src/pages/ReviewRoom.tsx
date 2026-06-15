@@ -27,6 +27,7 @@ import {
   RotateCcw,
   Save,
   X,
+  ListPlus,
 } from 'lucide-react';
 import { Header } from '../components/layout/Header';
 import { Navigation } from '../components/layout/Navigation';
@@ -47,7 +48,7 @@ import type { Speech, CoachAnnotation } from '../types';
 const PRESET_TAGS = ['逻辑清晰', '论证有力', '数据充分', '表达流畅', '临场应变', '需加强', '偏题', '超时', '情绪化', '结构混乱'];
 
 export default function ReviewRoom() {
-  const { currentDebate, speeches, violations, highlights, scores, updateSpeechAnnotation, addTrainingTask } = useDebateStore();
+  const { currentDebate, speeches, violations, highlights, scores, updateSpeechAnnotation, addOrUpdateReplayTask, trainingTasks } = useDebateStore();
   const [selectedTimelineIndex, setSelectedTimelineIndex] = useState(0);
   const [isPlaying, setIsPlaying] = useState(false);
   const [currentPlayTime, setCurrentPlayTime] = useState(0);
@@ -92,19 +93,11 @@ export default function ReviewRoom() {
     updateSpeechAnnotation(item.id, annotation);
     if (annotationNeedsReplay) {
       const debater = getDebaterById(item.debaterId);
-      addTrainingTask({
-        id: `replay-${Date.now()}`,
+      addOrUpdateReplayTask(item.id, {
         title: `回练: ${debater?.name || '辩手'}的发言片段`,
         description: annotationComment || '教练标记需要回练的发言片段',
-        status: 'pending',
-        deadline: new Date(Date.now() + 7 * 24 * 3600 * 1000),
-        dueDate: new Date(Date.now() + 7 * 24 * 3600 * 1000),
-        reward: 50,
-        progress: 0,
         priority: annotationTags.includes('结构混乱') || annotationTags.includes('偏题') ? 'high' : 'medium',
-        relatedSpeechId: item.id,
         replayReason: annotationReplayReason,
-        replayCompleted: false,
       });
     }
     setShowAnnotation(false);
@@ -119,9 +112,17 @@ export default function ReviewRoom() {
   const handleAddToReplayQueue = () => {
     const item = timelineItems[selectedTimelineIndex];
     if (!item || item.type !== 'speech') return;
+    const debater = getDebaterById(item.debaterId);
+    addOrUpdateReplayTask(item.id, {
+      title: `回练: ${debater?.name || '辩手'}的发言片段`,
+      description: '从复盘室加入回练队列的片段',
+    });
     setAnnotationNeedsReplay(true);
     setShowAnnotation(true);
   };
+
+  const isInReplayQueue = (speechId: string) =>
+    trainingTasks.some((t) => t.relatedSpeechId === speechId);
 
   const timelineItems = [
     ...speeches.map((s) => ({ ...s, type: 'speech' as const })),
@@ -486,12 +487,12 @@ export default function ReviewRoom() {
                           </div>
                           <div className="flex items-center gap-2">
                             <Button
-                              variant="ghost"
+                              variant={isInReplayQueue(selectedItem.id) ? 'secondary' : 'ghost'}
                               size="sm"
-                              leftIcon={<BookmarkPlus size={14} />}
+                              leftIcon={isInReplayQueue(selectedItem.id) ? <ListPlus size={14} /> : <BookmarkPlus size={14} />}
                               onClick={handleAddToReplayQueue}
                             >
-                              加入回练
+                              {isInReplayQueue(selectedItem.id) ? '已加入队列' : '加入回练'}
                             </Button>
                             <Button
                               variant="secondary"
