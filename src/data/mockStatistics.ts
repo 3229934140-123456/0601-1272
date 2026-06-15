@@ -16,6 +16,13 @@ export const mockStatistics: Statistics = {
   averageResponseSpeed: 2.3,
   totalDebates: 18,
   badges: mockBadges,
+  weeklySummary: {
+    speechTime: 1420,
+    avgResponseSpeed: 2.1,
+    winRate: 75,
+    winRateChange: 8,
+    debatesParticipated: 4,
+  },
   charts: {
     speechTime: [
       { month: '1月', minutes: 240 },

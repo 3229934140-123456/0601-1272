@@ -1,4 +1,4 @@
-import { useState, useCallback, useEffect } from 'react';
+import { useState, useCallback, useEffect, useMemo } from 'react';
 import type { Danmaku } from '../types';
 import { useDebateStore } from '../store/useDebateStore';
 
@@ -19,14 +19,15 @@ export function useDanmaku() {
     '#ffaaa5',
   ];
 
-  const sendDanmaku = useCallback((userName: string, userId: string) => {
-    if (!danmakuInput.trim()) return;
+  const sendDanmaku = useCallback((userName: string, userId: string, content?: string) => {
+    const messageContent = content || danmakuInput;
+    if (!messageContent.trim()) return;
 
     const newDanmaku: Danmaku = {
       id: `dm-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
       userId,
       userName,
-      content: danmakuInput.trim(),
+      content: messageContent.trim(),
       timestamp: Date.now(),
       color: selectedColor,
     };
@@ -40,6 +41,22 @@ export function useDanmaku() {
   }, [danmakus]);
 
   const visibleDanmakus = displayDanmakus;
+
+  const recentSpeakers = useMemo(() => {
+    const speakerMap = new Map<string, { name: string; count: number; lastTime: number }>();
+    displayDanmakus.forEach((d) => {
+      const existing = speakerMap.get(d.userId);
+      if (existing) {
+        existing.count += 1;
+        existing.lastTime = d.timestamp;
+      } else {
+        speakerMap.set(d.userId, { name: d.userName, count: 1, lastTime: d.timestamp });
+      }
+    });
+    return Array.from(speakerMap.values())
+      .sort((a, b) => b.lastTime - a.lastTime)
+      .slice(0, 5);
+  }, [displayDanmakus]);
 
   const getDanmakuStyle = useCallback((index: number) => {
     const top = (index * 30) % 70 + 5;
@@ -59,6 +76,7 @@ export function useDanmaku() {
     setSelectedColor,
     sendDanmaku,
     colors,
+    recentSpeakers,
     getDanmakuStyle,
   };
 }

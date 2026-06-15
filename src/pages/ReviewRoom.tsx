@@ -112,14 +112,23 @@ export default function ReviewRoom() {
   const handleSkipBack = () => {
     const newIndex = Math.max(0, selectedTimelineIndex - 1);
     setSelectedTimelineIndex(newIndex);
-    setCurrentPlayTime(0);
   };
 
   const handleSkipForward = () => {
     const newIndex = Math.min(timelineItems.length - 1, selectedTimelineIndex + 1);
     setSelectedTimelineIndex(newIndex);
-    setCurrentPlayTime(0);
   };
+
+  useEffect(() => {
+    setCurrentPlayTime(0);
+    if (playIntervalRef.current) {
+      clearInterval(playIntervalRef.current);
+      playIntervalRef.current = null;
+    }
+    if (isPlaying) {
+      startPlayback();
+    }
+  }, [selectedTimelineIndex]);
 
   const startPlayback = () => {
     if (playIntervalRef.current) {

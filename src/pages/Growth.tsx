@@ -125,6 +125,68 @@ export default function Growth() {
               transition={{ delay: 0.1 }}
             >
               <Card gradient>
+                <CardContent className="p-6">
+                  <div className="flex items-center justify-between mb-6">
+                    <div>
+                      <h3 className="text-xl font-bold text-white flex items-center gap-2">
+                        <Flame size={20} className="text-[#d4af37]" />
+                        本周训练小结
+                      </h3>
+                      <p className="text-sm text-gray-400 mt-1">最近7天的训练表现</p>
+                    </div>
+                    <Button
+                      variant="secondary"
+                      size="sm"
+                      leftIcon={<Target size={16} />}
+                      onClick={() => setActiveTab('tasks')}
+                    >
+                      训练任务
+                    </Button>
+                  </div>
+                  <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                    <div className="p-4 rounded-xl bg-white/5">
+                      <div className="text-xs text-gray-500 mb-1">本周发言时长</div>
+                      <div className="text-2xl font-bold text-[#d4af37]">
+                        {formatDuration(stats.weeklySummary.speechTime)}
+                      </div>
+                      <div className="text-xs text-green-400 mt-1">↑ 12% 较上周</div>
+                    </div>
+                    <div className="p-4 rounded-xl bg-white/5">
+                      <div className="text-xs text-gray-500 mb-1">平均回应速度</div>
+                      <div className="text-2xl font-bold text-blue-400">
+                        {stats.weeklySummary.avgResponseSpeed}s
+                      </div>
+                      <div className="text-xs text-green-400 mt-1">↓ 0.2s 较上周</div>
+                    </div>
+                    <div className="p-4 rounded-xl bg-white/5">
+                      <div className="text-xs text-gray-500 mb-1">本周胜率</div>
+                      <div className="text-2xl font-bold text-green-400">
+                        {formatPercentage(stats.weeklySummary.winRate)}
+                      </div>
+                      <div className={`text-xs mt-1 ${
+                        stats.weeklySummary.winRateChange >= 0 ? 'text-green-400' : 'text-red-400'
+                      }`}>
+                        {stats.weeklySummary.winRateChange >= 0 ? '↑' : '↓'} {Math.abs(stats.weeklySummary.winRateChange)}%
+                      </div>
+                    </div>
+                    <div className="p-4 rounded-xl bg-white/5">
+                      <div className="text-xs text-gray-500 mb-1">待完成任务</div>
+                      <div className="text-2xl font-bold text-orange-400">
+                        {pendingTasks + inProgressTasks}
+                      </div>
+                      <div className="text-xs text-gray-500 mt-1">共 {tasks.length} 项</div>
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+            </motion.div>
+
+            <motion.div
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: 0.15 }}
+            >
+              <Card gradient>
                 <CardContent className="p-8">
                   <div className="flex flex-col md:flex-row items-center gap-8">
                     <div className="relative">
@@ -182,7 +244,7 @@ export default function Growth() {
               <motion.div
                 initial={{ opacity: 0, y: 20 }}
                 animate={{ opacity: 1, y: 0 }}
-                transition={{ delay: 0.2 }}
+                transition={{ delay: 0.25 }}
               >
                 <Card>
                   <CardHeader>

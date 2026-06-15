@@ -122,6 +122,13 @@ export interface Statistics {
   winRate: number;
   commonArguments: string[];
   badges: Badge[];
+  weeklySummary: {
+    speechTime: number;
+    avgResponseSpeed: number;
+    winRate: number;
+    winRateChange: number;
+    debatesParticipated: number;
+  };
   charts: {
     speechTime: { month: string; minutes: number }[];
     responseSpeed: { debate: string; seconds: number }[];

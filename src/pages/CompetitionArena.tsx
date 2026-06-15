@@ -32,7 +32,7 @@ import { useDebateStore } from '../store/useDebateStore';
 import { useUserStore } from '../store/useUserStore';
 import { useTimer } from '../hooks/useTimer';
 import { useDanmaku } from '../hooks/useDanmaku';
-import { getRoleName, getSideName, getSideColor } from '../utils/format';
+import { getRoleName, getSideName, getSideColor, formatDuration } from '../utils/format';
 import { formatTime } from '../utils/time';
 
 const cardTypes = [
@@ -58,7 +58,7 @@ export default function CompetitionArena() {
   } = useDebateStore();
   const { currentUser } = useUserStore();
   const [isSpeaking, setIsSpeaking] = useState(false);
-  const [danmakuInput, setDanmakuInput] = useState('');
+  const [selectedSpeakerId, setSelectedSpeakerId] = useState<string>('');
   const [raisedCard, setRaisedCard] = useState<string | null>(null);
   const [showDanmaku, setShowDanmaku] = useState(true);
   const danmakuContainerRef = useRef<HTMLDivElement>(null);
@@ -78,7 +78,7 @@ export default function CompetitionArena() {
     onWarning: () => playWarningSound(),
   });
 
-  const { visibleDanmakus, sendDanmaku } = useDanmaku();
+  const { visibleDanmakus, danmakuInput, setDanmakuInput, selectedColor, setSelectedColor, sendDanmaku, colors, recentSpeakers } = useDanmaku();
 
   useEffect(() => {
     if (currentRound) {
@@ -122,26 +122,34 @@ export default function CompetitionArena() {
 
   const handleToggleSpeak = () => {
     if (isSpeaking) {
+      const actualDuration = (currentRound?.duration || 180) - timerTime;
       setIsSpeaking(false);
       pause();
       setIsPaused(true);
       if (currentSpeaker) {
+        const content = `${currentSpeaker.name}在"${currentRound?.name}"环节的发言，时长${formatDuration(actualDuration)}，主要论述了${currentRound?.side === 'affirmative' ? '正方' : '反方'}观点。`;
         addSpeech({
           id: `speech-${Date.now()}`,
           debaterId: currentSpeaker.id,
           startTime: 0,
-          duration: (currentRound?.duration || 180) - timerTime,
-          transcript: '发言记录...',
-          content: '发言记录...',
+          duration: actualDuration,
+          transcript: content,
+          content: content,
           timestamp: new Date(),
           highlights: [],
         });
       }
+      setSelectedSpeakerId('');
     } else {
+      const allDebaters = currentDebate?.teams.flatMap((t) => t.debaters) || [];
+      const selectedDebater = selectedSpeakerId
+        ? allDebaters.find((d) => d.id === selectedSpeakerId)
+        : currentUser;
+      if (!selectedDebater) return;
       setIsSpeaking(true);
       start();
       setIsPaused(false);
-      setCurrentSpeaker(currentUser as any);
+      setCurrentSpeaker(selectedDebater as any);
     }
   };
 
@@ -256,6 +264,42 @@ export default function CompetitionArena() {
                 </CardHeader>
                 <CardContent>
                   <div className="flex flex-col items-center justify-center py-8">
+                    {!isSpeaking && (
+                      <div className="w-full max-w-lg mb-8 space-y-4">
+                        <div>
+                          <label className="block text-sm font-medium text-gray-300 mb-2">选择发言环节</label>
+                          <select
+                            value={currentRoundIndex}
+                            onChange={(e) => setCurrentRoundIndex(parseInt(e.target.value))}
+                            className="w-full p-3 rounded-lg bg-white/5 border border-white/10 text-white focus:outline-none focus:border-[#d4af37]"
+                          >
+                            {currentDebate?.rounds.map((round, i) => (
+                              <option key={round.id} value={i}>
+                                第{i + 1}环节 · {round.name}
+                              </option>
+                            ))}
+                          </select>
+                        </div>
+                        <div>
+                          <label className="block text-sm font-medium text-gray-300 mb-2">选择发言辩手</label>
+                          <select
+                            value={selectedSpeakerId}
+                            onChange={(e) => setSelectedSpeakerId(e.target.value)}
+                            className="w-full p-3 rounded-lg bg-white/5 border border-white/10 text-white focus:outline-none focus:border-[#d4af37]"
+                          >
+                            <option value="">请选择辩手</option>
+                            {currentDebate?.teams.flatMap((team) =>
+                              team.debaters.map((debater) => (
+                                <option key={debater.id} value={debater.id}>
+                                  {team.side === 'affirmative' ? '正方' : '反方'} · {debater.name} ({getRoleName(debater.role)})
+                                </option>
+                              ))
+                            )}
+                          </select>
+                        </div>
+                      </div>
+                    )}
+
                     <div className="relative mb-8">
                       <Avatar
                         name={currentSpeaker?.name || '?'}
@@ -294,6 +338,7 @@ export default function CompetitionArena() {
                         size="lg"
                         leftIcon={isSpeaking ? <MicOff size={20} /> : <Mic size={20} />}
                         onClick={handleToggleSpeak}
+                        disabled={!isSpeaking && !selectedSpeakerId}
                         className="min-w-[140px]"
                       >
                         {isSpeaking ? '结束发言' : '开始发言'}
@@ -478,6 +523,22 @@ export default function CompetitionArena() {
                   </div>
                 </CardHeader>
                 <CardContent className="flex-1 flex flex-col overflow-hidden">
+                  {recentSpeakers.length > 0 && (
+                    <div className="mb-3 pb-3 border-b border-white/10">
+                      <p className="text-xs text-gray-500 mb-2">最近发言</p>
+                      <div className="flex flex-wrap gap-2">
+                        {recentSpeakers.map((speaker) => (
+                          <span
+                            key={speaker.name}
+                            className="px-2 py-1 text-xs rounded-full bg-white/5 text-gray-400"
+                          >
+                            {speaker.name}
+                            <span className="ml-1 text-[#d4af37]">×{speaker.count}</span>
+                          </span>
+                        ))}
+                      </div>
+                    </div>
+                  )}
                   <div
                     ref={danmakuContainerRef}
                     className="flex-1 overflow-y-auto space-y-2 mb-4 pr-2"
@@ -493,11 +554,34 @@ export default function CompetitionArena() {
                         ))}
                       </AnimatePresence>
                     )}
-                    {visibleDanmakus.length === 0 && (
+                    {!showDanmaku && visibleDanmakus.length > 0 && (
                       <div className="h-full flex items-center justify-center text-gray-500">
-                        暂无弹幕
+                        弹幕已隐藏
                       </div>
                     )}
+                    {visibleDanmakus.length === 0 && (
+                      <div className="h-full flex items-center justify-center text-gray-500">
+                        暂无弹幕，快来发送第一条吧~
+                      </div>
+                    )}
+                  </div>
+                  <div className="mb-3">
+                    <p className="text-xs text-gray-500 mb-2">选择颜色</p>
+                    <div className="flex gap-2 flex-wrap">
+                      {colors.map((color) => (
+                        <button
+                          key={color}
+                          onClick={() => setSelectedColor(color)}
+                          className={`w-6 h-6 rounded-full transition-transform ${
+                            selectedColor === color
+                              ? 'ring-2 ring-white ring-offset-2 ring-offset-[#0d1117] scale-110'
+                              : 'hover:scale-110'
+                          }`}
+                          style={{ backgroundColor: color }}
+                          title={color}
+                        />
+                      ))}
+                    </div>
                   </div>
                   <div className="flex gap-2">
                     <Input
@@ -506,6 +590,7 @@ export default function CompetitionArena() {
                       onChange={(e) => setDanmakuInput(e.target.value)}
                       onKeyPress={handleKeyPress}
                       className="flex-1"
+                      style={{ borderColor: selectedColor }}
                     />
                     <Button
                       variant="secondary"
